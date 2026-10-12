@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+# data files are licensed separately and never go in this repo
+*.jsonl.gz
+*.jsonl
+*.manifest.json
