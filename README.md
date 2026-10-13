@@ -78,12 +78,12 @@ launchtape fetch https://launchtape.io/dl/<token> pregrad 2026-10-11 -o data/
 
 ## Full days: prices and how to buy
 
-Day file (one dataset, one UTC day): 0.05 SOL or 6 USDC. Month of history (one dataset, 30 days): 0.5 SOL or
-60 USDC. Daily feed (every dataset, each new day as it closes): 1 SOL or 120 USDC a month. Send SOL or USDC on
-Solana to `5vf1PzK8LrF9D5bemYJYPsFYp4nHULSTA1biBampgU58` with a memo giving your email address or Telegram handle
-and the datasets and days you want; within 24 hours you get a private download link
-(`https://launchtape.io/dl/<token>`, valid 7 days) that `launchtape fetch` reads. Or buy through
-[launchtape.io](https://launchtape.io/#buy), which has a Solana Pay QR code and a contact form.
+- **Starter, $10 a month:** all 4 datasets, each new day's files as the UTC day closes, plus the last 7 days on file.
+- **Full history, $49 a month:** everything in Starter, plus every day on file back to October 3 2026.
+
+Buy at [launchtape.io](https://launchtape.io/#buy): pick a plan, enter your email, press Pay (USDC or SOL on Solana; your
+wallet opens with everything filled in). The private download link (`https://launchtape.io/dl/<token>`) arrives by email,
+and `launchtape fetch` reads it.
 
 ## Licences
 
