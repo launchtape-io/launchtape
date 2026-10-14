@@ -24,20 +24,24 @@ Python 3.9 or newer.
 
 ## Quickstart
 
-Crash rate of pump.fun graduates, split by "instant" launches (graduated within 5 s of creation):
+Share of pump.fun graduates that touched -80% in their first 10 minutes, split by "instant" launches (graduated within 5 s of creation):
 
 ```python
 import launchtape as lt
 
 path = lt.sample("pregrad")                                    # free sample, SHA-256 checked, cached
 rec = lt.frame(path, types="record")[["mint", "sym", "instant", "ageS"]]
-out = lt.frame(path, types="outcome")[["mint", "crashed", "maxGain"]]
+out = lt.frame(path, types="outcome")[["mint", "minDrop", "maxGain", "crashed"]]
+out = out.dropna(subset=["minDrop"])                           # no pool trades = no prices
 df = rec.merge(out, on="mint")                                 # one row per graduate seen in both
-print(df.groupby("instant")["crashed"].agg(["mean", "count"]))
+df["touched_minus80"] = df["minDrop"] <= -80                   # vs the price 10 s after graduation
+print(df.groupby("instant")["touched_minus80"].agg(["mean", "count"]))
 print(lt.schema("pregrad"))                                    # every row type and field
 ```
 
-The sample is two hours, so the counts are small: it shows the shape of the data, not a result.
+`crashed` is a different, milder flag: a trade at 60% of the running high or lower in the first 10 minutes (a 40%+ fall
+from the high), not an 80% drop. The sample is two hours, so the counts are small: it shows the shape of the data, not
+a result.
 
 ## API
 

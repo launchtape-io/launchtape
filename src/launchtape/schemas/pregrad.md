@@ -32,8 +32,8 @@ Who is behind each pump.fun launch, as raw facts (addresses, amounts, times). No
 | record | curve | object | `coverage` (full/partial/none), `holders[]` (top 10: `w`, `pct`, `sol`, `creator`), `creationSlot` (`ok`, `failed`, `curveTxs`, `capped`: transactions in the creation slot), `bundleEst` (`buyers`, `avgPct`, `top5Pct`), `estimated`, `top1NcPct`, `top5NcPct`, `nOver3Pct`, `bundleWallets`, `bundlePct`, `creatorPct`, `path` (`firstCap`, `firstS`, `t100S`..`t400S`, `maxCap`, `updates`, `completeS`: the cap over time), `trades` (`fromCap`, `fromT`, `n`, `buys`, `sells`, `wallets`, `maxCap`, `lastCap`, `completeT`, `topBuyers[]` with `w`, `tokens`, `pct`, `sol`, `creator`: our own count of its curve trades) |
 | outcome | mint, sym, t0, recT | | +10 min after graduation |
 | outcome | capAt | object | PumpSwap cap (SOL) at +10/45/60/120/180/300/600 s |
-| outcome | maxGain, minDrop | number | best / worst move in %, first 10 min |
-| outcome | crashed | bool | fell by 80%+ |
+| outcome | maxGain, minDrop | number/null | best / worst move in %, first 10 min, vs the price 10 s after graduation (`capAt` "10"; the first trade's price if there was no trade by then). "Touched -80%" = `minDrop` <= -80; "touched 2x" = `maxGain` >= 100. Null when no PumpSwap trades were seen (`trades` 0) |
+| outcome | crashed | bool | a trade at 60% of the running high or lower within the first 10 min, i.e. a 40%+ fall from the high (the high starts at the price 10 s after graduation; trades in the first 2 s are not checked). Not an 80% drop: for "touched -80%" use `minDrop` <= -80. False when no PumpSwap trades were seen |
 | outcome | trades | number | PumpSwap trades counted |
 | outcome | dump, firstBigSell, bigSells[] | object | the first sale breaking a fixed size rule and the large sales: `tS`, `w`, `frac` (share of pool sold), `sol`, `capAfter`, `rule`, `tokensFrom` (where the sold tokens came from: `kind`, `from`, `for`, `tokens`, `pct`, `sig`, `bt`, `account`, `accountTxs`, `beforeDumpS`, `afterGradS`) |
 | outcome | src | string | where trades were read from |

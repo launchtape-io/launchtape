@@ -14,8 +14,8 @@ ROWS = [
      "curve": {"coverage": "full", "holders": [{"w": "W2", "pct": 3.5}]}},
     {"type": "record", "t": 1791640020000, "mint": "MintB", "sym": "B", "instant": False, "ageS": 640.0,
      "curve": {"coverage": "partial", "holders": []}},
-    {"type": "outcome", "t": 1791640610000, "mint": "MintA", "crashed": True, "maxGain": 10.5},
-    {"type": "outcome", "t": 1791640620000, "mint": "MintB", "crashed": False, "maxGain": 80.0},
+    {"type": "outcome", "t": 1791640610000, "mint": "MintA", "crashed": True, "maxGain": 10.5, "minDrop": -85.0},
+    {"type": "outcome", "t": 1791640620000, "mint": "MintB", "crashed": False, "maxGain": 80.0, "minDrop": -20.0},
 ]
 
 

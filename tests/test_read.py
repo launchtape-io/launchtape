@@ -88,11 +88,13 @@ def test_frame(pregrad_gz):
     pd = pytest.importorskip("pandas")
     df = lt.frame(pregrad_gz, types=["record", "outcome"])
     assert isinstance(df, pd.DataFrame)
-    assert len(df) == 4 and {"type", "mint", "instant", "crashed"} <= set(df.columns)
-    # the README quickstart: crash rate by instant
+    assert len(df) == 4 and {"type", "mint", "instant", "crashed", "minDrop"} <= set(df.columns)
+    # the README quickstart: share that touched -80% (minDrop <= -80) by instant
     rec = lt.frame(pregrad_gz, types="record")[["mint", "instant"]]
-    out = lt.frame(pregrad_gz, types="outcome")[["mint", "crashed"]]
-    rate = rec.merge(out, on="mint").groupby("instant")["crashed"].mean()
+    out = lt.frame(pregrad_gz, types="outcome")[["mint", "minDrop", "maxGain", "crashed"]].dropna(subset=["minDrop"])
+    both = rec.merge(out, on="mint")
+    both["touched_minus80"] = both["minDrop"] <= -80
+    rate = both.groupby("instant")["touched_minus80"].mean()
     assert rate.to_dict() == {False: 0.0, True: 1.0}
     assert lt.frame(pregrad_gz, limit=2).shape[0] == 2
     assert lt.frame(pregrad_gz, types="nope").empty
