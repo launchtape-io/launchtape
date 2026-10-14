@@ -10,9 +10,10 @@ from ._catalog import DATASETS, Dataset, datasets, schema
 from ._download import ChecksumError, LaunchTapeError, cache_dir, fetch, sample
 from ._read import frame, load
 from ._version import __version__
+from .backtest import Rules, backtest, backtest_report
 
 __all__ = [
     "DATASETS", "Dataset", "datasets", "schema",
     "sample", "fetch", "cache_dir", "LaunchTapeError", "ChecksumError",
-    "load", "frame", "__version__",
+    "load", "frame", "Rules", "backtest", "backtest_report", "__version__",
 ]

@@ -49,6 +49,8 @@ The sample is two hours, so the counts are small: it shows the shape of the data
 | `lt.load(path_or_dataset, types=None, limit=None)` | streams the rows as dicts (a `.jsonl.gz` or `.parquet` path); `types` keeps only rows whose `type` is one of them, `limit` stops after that many rows; a dataset name reads its sample |
 | `lt.frame(path_or_dataset, types=None, limit=None)` | the same rows as a pandas DataFrame (nested fields stay dicts/lists) |
 | `lt.fetch(link_or_token, dataset, day, dest=None, format="jsonl")` | downloads a paid day file from your delivery link, checks it against its `.manifest.json`, returns its path; `format="parquet"` for the Parquet copy |
+| `lt.backtest(rules=None, gradtrades=None, pregrad=None)` | replays your trading rules on every graduate in a gradtrades file with honest fills and returns the result as a dict (see [Test your bot's rules](#test-your-bots-rules)) |
+| `lt.backtest_report(result)` | that result as the plain-text report `launchtape backtest` prints |
 
 ```python
 for row in lt.load("gradtrades", types="grad", limit=5):      # streams, so a 5-million-row day is fine
@@ -94,6 +96,54 @@ launchtape fetch https://launchtape.io/dl/<token> pregrad 2026-10-11 -o data/ --
 ```
 
 `python -m launchtape ...` works too.
+
+## Test your bot's rules
+
+`launchtape backtest` replays simple rules on every pump.fun graduate in a `gradtrades` file, coin by coin, and prints
+a report: coins traded, win rate, median and mean return a trade, total, the worst trades, how many coins never reached
+your entry, what the first 10 minutes did, a plain verdict, and the same rules filled the naive way for comparison.
+It is the same replay as the prompt on [launchtape.io/test](https://launchtape.io/test), for when your AI can't run code.
+
+```sh
+launchtape backtest                                  # the example rules on the free 2-hour sample
+launchtape backtest --template > rules.json          # the rules as a file to edit
+launchtape backtest --rules rules.json
+launchtape backtest --rules rules.json --gradtrades data/gradtrades-2026-10-11.jsonl.gz   # a paid day
+launchtape backtest --rules rules.json --json        # every trade, as JSON
+```
+
+A paid day finds its `pregrad` file next to it (`pregrad-2026-10-11.jsonl.gz` or `.parquet`), or pass `--pregrad`. A full
+day (about 5 million rows) takes under a minute and little memory: the file is streamed once.
+
+| Rule | Meaning (default) |
+|---|---|
+| `entry_s` | buy this many seconds after graduation (15) |
+| `exit_s` | sell this many seconds after graduation; 1800 or more = hold to the end of the 30 minutes (180) |
+| `stop_pct` | sell when the price falls this % below your entry price; `null` = no stop (20) |
+| `take_profit_pct` | sell when the price rises this % above your entry price; `null` = none (`null`) |
+| `size_sol` | SOL per trade (0.1) |
+| `fee_pct` / `slippage_pct` | PumpSwap fee / priority fee + slippage, % per side (1 / 0.5) |
+| `max_fill_s` / `min_fill_s` | only coins whose bonding curve filled within / took at least this many seconds from creation (pregrad `ageS`; 5 = the "instant" launches) |
+| `min_dev_pct` / `max_dev_pct` | only coins whose creator held at least / at most this % of supply at graduation (pregrad `creatorPctAtGrad`) |
+
+How a trade is filled, so the test is never kinder than the market:
+
+- Prices are read at the end of each slot (the slot's last trade's `priceAfter` and `poolBase`). Several trades in one
+  slot can be one bundle, such as a big dump and its re-buy in the same block, and nobody outside could trade between
+  them.
+- A signal never fills at its own price: it fills at the end of the first slot after it. Stops and take-profits are
+  checked at each slot's end and fill at the next one, so a -20% stop in a dump can fill at -80%.
+- Every buy and sell pays 1% PumpSwap fee + 0.5% priority fee and slippage (change them in the rules), and your size
+  moves the price: a fill uses that slot's pool (constant product, with PumpSwap's virtual SOL).
+- Still holding at +30 minutes (the end of the recorded window): out at the last price. A trade still open when the file
+  ends or the recorder stopped following the coin is left out and counted, never guessed. Feed gaps are flagged.
+
+```python
+import launchtape as lt
+res = lt.backtest({"entry_s": 15, "exit_s": 180, "stop_pct": 20, "max_fill_s": 5})
+print(lt.backtest_report(res))
+print(res["summary"]["medianReturnPct"], len(res["trades"]))
+```
 
 ## Full days: prices and how to buy
 

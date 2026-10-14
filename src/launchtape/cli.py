@@ -1,4 +1,4 @@
-"""Command line: launchtape datasets | sample | head | schema | fetch."""
+"""Command line: launchtape datasets | sample | head | schema | fetch | backtest."""
 
 from __future__ import annotations
 
@@ -43,6 +43,19 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("day", help="UTC day, YYYY-MM-DD")
     s.add_argument("-o", "--dest", help="folder or file path (default: current folder)")
     s.add_argument("--format", choices=FORMATS, default="jsonl", help="jsonl (gzipped JSON lines, default) or parquet")
+
+    s = sub.add_parser("backtest", help="replay your trading rules on pump.fun graduates with honest fills and print "
+                       "a report", description="Replay simple rules (buy N s after graduation; sell at a time, a stop "
+                       "or a take-profit) coin by coin on gradtrades, filling every signal at the end of the next "
+                       "slot with fees, slippage and your size's price impact. Default: the example rules on the free "
+                       "2-hour sample. Same steps as the prompt on https://launchtape.io/test.")
+    s.add_argument("--rules", metavar="FILE", help="a rules JSON file (see --template); default: the example rules")
+    s.add_argument("--gradtrades", metavar="PATH", help="a gradtrades .jsonl.gz or .parquet file, e.g. a paid day "
+                   "(default: the free sample)")
+    s.add_argument("--pregrad", metavar="PATH", help="the pregrad file of the same day, for filters and the "
+                   "first-10-minutes numbers (default: found next to --gradtrades, or the free sample)")
+    s.add_argument("--json", action="store_true", help="print the full result (every trade) as JSON instead")
+    s.add_argument("--template", action="store_true", help="print the example rules as JSON to edit, and exit")
     return p
 
 
@@ -67,6 +80,13 @@ def _run(a: argparse.Namespace) -> int:
         sys.stdout.write(schema(a.dataset))
     elif a.cmd == "fetch":
         print(fetch(a.link, a.dataset, a.day, a.dest, progress=progress, format=a.format))
+    elif a.cmd == "backtest":
+        from .backtest import backtest, backtest_report, rules_template
+        if a.template:
+            sys.stdout.write(rules_template())
+            return 0
+        res = backtest(a.rules, a.gradtrades, a.pregrad, progress=progress)
+        sys.stdout.write(json.dumps(res, indent=1) + "\n" if a.json else backtest_report(res))
     return 0
 
 
