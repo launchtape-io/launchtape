@@ -154,10 +154,13 @@ print(res["summary"]["medianReturnPct"], len(res["trades"]))
 
 ## Full days: prices and how to buy
 
-- **Starter, $10 a month:** all 4 datasets, each new day's files as the UTC day closes, plus the last 7 days on file.
+- **One day, $10 once:** any UTC day you pick (from October 4 2026): that day's `gradtrades` and `pregrad`, the test prompt
+  with its file names, and what the example rules returned that day. On the free sample, `launchtape backtest` ends its
+  verdict with the link: <https://launchtape.io/?plan=day1#buy>.
+- **Starter, $10 a month:** all 7 datasets, each new day's files as the UTC day closes, plus the last 7 days on file.
 - **Full history, $49 a month:** everything in Starter, plus every day on file back to October 3 2026.
 
-Buy at [launchtape.io](https://launchtape.io/#buy): pick a plan, enter your email, press Pay (USDC or SOL on Solana; your
+Buy at [launchtape.io](https://launchtape.io/#buy): pick one day or a plan, enter your email, press Pay (USDC or SOL on Solana; your
 wallet opens with everything filled in). The private download link (`https://launchtape.io/dl/<token>`) arrives by email,
 and `launchtape fetch` reads it.
 

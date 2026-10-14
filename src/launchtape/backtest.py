@@ -758,6 +758,9 @@ def backtest_report(res: Dict[str, Any]) -> str:
                        f"({o['withDump']} coins had one)")
         out.append("")
     out += ["Verdict"] + ["  " + line for line in _wrap(verdict(res), 74)] + [""]
+    more = day_offer(res)
+    if more:
+        out += [more, ""]
     out += ["The 3 mistakes we see most"] + ["  " + line for m in mistakes(res) for line in _wrap(m, 74, "   ")]
     return "\n".join(out) + "\n"
 
@@ -773,6 +776,20 @@ def _wrap(text: str, width: int, indent: str = "") -> List[str]:
     if cur:
         lines.append(cur)
     return lines
+
+
+DAY_URL = "https://launchtape.io/?plan=day1#buy"
+_CUT = re.compile(r"-\d{4}-\d{4}utc\.(jsonl\.gz|parquet)$")
+
+
+def day_offer(res: Dict[str, Any]) -> Optional[str]:
+    """On the free sample (a 2-hour cut: "...-1400-1600utc"), one line on getting a full day; None on any other file."""
+    span, n = res["files"]["utc"], res["summary"]["trades"]
+    if not span or not _CUT.search(res["files"]["gradtrades"] or ""):
+        return None
+    h = span["hours"]
+    return (f"{h:g} hour{'' if h == 1 else 's'}, {n} trade{'' if n == 1 else 's'}. "
+            f"A full day of the same rules is one file: $10 at {DAY_URL}")
 
 
 def verdict(res: Dict[str, Any]) -> str:

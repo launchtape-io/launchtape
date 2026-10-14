@@ -313,3 +313,19 @@ def test_parquet_gives_the_same_result(tmp_path):
     a, b = backtest(None, gz), backtest(None, pqf)
     a.pop("files"), b.pop("files")
     assert a == b
+
+
+def test_free_sample_report_offers_a_full_day(tmp_path):
+    """0.1.6: on the free sample (a 2-hour cut) the verdict is followed by one line on a full day; not on a day file."""
+    pg = [record("M1", sym="COIN"), outcome("M1", -85, 150)]
+    day = backtest_report(run(tmp_path, BASIC, pg))
+    assert "plan=day1" not in day
+    gt = tmp_path / "gradtrades-2026-10-10-1400-1600utc.jsonl.gz"
+    gt.write_bytes(gz_bytes(BASIC))
+    pgf = tmp_path / "pregrad-2026-10-10-1400-1600utc.jsonl.gz"
+    pgf.write_bytes(gz_bytes(pg))
+    res = backtest(None, gt, pgf)
+    text = backtest_report(res)
+    line = "0.5 hours, 1 trade. A full day of the same rules is one file: $10 at https://launchtape.io/?plan=day1#buy"
+    assert line in text.splitlines()
+    assert text.index("Verdict") < text.index(line) < text.index("The 3 mistakes we see most")
