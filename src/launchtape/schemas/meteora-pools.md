@@ -2,6 +2,8 @@
 
 One row per pool per minute, Meteora DLMM pools with TVL >= US$50k, top 200 by 24h fee/TVL. Source: Meteora's public DLMM API (dlmm.datapi.meteora.ag). No RPC, no wallets.
 
+**Source from 2026-10-16:** our own chain recorder (meteora-chain: the pools read straight from the Solana chain, no third-party API). Same rows, same fields. Days before 2026-10-16 come from Meteora's API as above.
+
 **Parquet:** every day file also ships as `meteora-pools-YYYY-MM-DD.parquet`, with the same fields as columns: one table for all row types (a field a row does not have is null), `t` integer ms, nested objects as structs and arrays as lists.
 
 | field | type | meaning |

@@ -35,8 +35,12 @@ One JSON object per line. Every row has `type` and `t` (ms since 1970 UTC, when 
 | trade | creator | bool | true when the trader is the coin's creator |
 | trade | ix | string | instruction variant, e.g. `buy_exact_quote_in`; absent for a normal buy |
 | trade | recovered | bool | the log was truncated; trade read from the full transaction |
+| trade | src | "backfill" | since 2026-10-14: present only on trades repaired after a feed gap, read from whole blocks; the same fields and values as live rows. Live rows have no `src` |
 | end | mint, why, buys, sells | string, string, number, number | coin no longer followed: `window` (30 min done), `evicted` (cap of 30 coins), `budget` (data budget); counts recorded |
-| down / up | t | number | a feed connection dropped / came back: trades in between may be missing |
+| down / up | t | number | a feed connection dropped / came back. Since 2026-10-14 the coins' trades in between are repaired from the chain: see `backfill` |
+| backfill | from, to, conn, coins | number, number, string, number | since 2026-10-14: one gap repaired from the chain (whole blocks via a paid RPC): its window (ms), the connection (`restart` = the recorder restarted; `gradslot` = a new graduate's graduation slot and the slot or two before its live feed started, read for every graduate from 2026-10-14 03:38 UTC: the same-slot buys earlier files lack), the coins it covered |
+| backfill | slotFrom, slotTo, blocks, skipped, failed, txs, trades | number | slots read, blocks read, slots with no block, slots that could not be read, transactions and trades repaired |
+| backfill | complete, stop | bool, string | `complete: true` = every slot of the window was read; false: `stop` says why (`nocredit`, `maxblocks`, `noslot`, `nohelius`) |
 | resume | mint | string | coin picked up again after a restart; the gap before `t` is missing |
 
 Failed transactions are not included. Coverage gaps are marked, never filled in.

@@ -7,7 +7,7 @@ Who is behind each pump.fun launch, as raw facts (addresses, amounts, times). No
 | type | field | type | meaning |
 |---|---|---|---|
 | create | t, mint, sig | number, string, string | coin creation |
-| create | creator | string | creator wallet |
+| create | creator | string | creator wallet: the wallet that signed the creation |
 | create | name, sym | string | coin name / ticker |
 | create | devTokens, devSol | number | creator's own buy at creation |
 | create | capSol | number | curve market cap right after creation |
@@ -17,11 +17,11 @@ Who is behind each pump.fun launch, as raw facts (addresses, amounts, times). No
 | curvex | cap, cross, sol, sinceFirstS | number | cap now (SOL), line crossed (100/200/300/400 SOL), SOL in curve, seconds since first seen |
 | ctrade | bt, slot, sig, i, mint, side, user | | bonding-curve trade on a coin near graduation (read from cap 200 SOL up); `i` counts this coin's trades inside the transaction, so (`sig`, `mint`, `i`) is the unique key (one transaction can trade two coins) |
 | ctrade | sol, tokens, capAfter, curveSol | number | SOL and tokens of the trade, cap and curve SOL after it. Note: pump.fun also runs curves priced in another token instead of SOL (the PUMP coin and a few others). In files up to 2026-10-12 17:47 UTC those coins' rows carry `sol` 0, `capAfter` null, `curveSol` 0 (the amount really is zero SOL; the trade was in the other token): treat `capAfter` null as "not a SOL curve". From 2026-10-12 17:47 UTC the recorder no longer follows non-SOL curves, so new files hold SOL curves only |
-| migrate | mint, sig, pool | string | migration seen by PumpPortal (`pool` = destination AMM) |
+| migrate | mint, sig, pool | string | the migration (from the chain's program logs since 2026-10-14, PumpPortal before; `pool` = destination AMM) |
 | grad | mint, slot, capSol, creator | | graduation as seen on chain |
 | record | mint, sym, name, pool, slot0, sig0, t0, bt0 | | one per graduate, written 10-40 s after graduation (t0 = graduation) |
-| record | src | object | `first` = which feed saw it first, `gradRow` = a `grad` row exists, `migrate` = ms of the PumpPortal migration (or null), `curveCompleteS` = curve completed how long before t0 |
-| record | creator, create | string, object | creator wallet; creation tx (`t`, `sig`, `src`, `slot`, `mayhem`, `capSol`), null when the creation was not seen |
+| record | src | object | `first` = which feed saw it first (`chainlogs` = the chain's program logs, from 2026-10-14; `pumpportal` on older days), `gradRow` = a `grad` row exists, `migrate` = ms of the migration (or null), `curveCompleteS` = curve completed how long before t0 |
+| record | creator, create | string, object | creator wallet (the creation's signer); creation tx (`t`, `sig`, `src`: `chainlogs` from 2026-10-14, `pumpportal` on older days, `slot`, `mayhem`, `capSol`), null when the creation was not seen |
 | record | ageS | number | creation to graduation, seconds |
 | record | instant | bool | graduated within 5 s of creation |
 | record | cap0, curveSol | number | PumpSwap cap at graduation; SOL raised |

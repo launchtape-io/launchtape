@@ -9,12 +9,12 @@ from conftest import BASE, ROWS, TOKEN
 
 def test_datasets():
     ds = lt.datasets()
-    assert [d.name for d in ds] == list(lt.DATASETS) == ["gradtrades", "pregrad", "padfeed", "meteora-pools"]
+    assert [d.name for d in ds] == list(lt.DATASETS) == ["gradtrades", "pregrad", "padfeed", "meteora-pools", "curvetape", "launchmeta", "gradholders"]
     for name, description in ds:
         assert description and "\n" not in description
 
 
-@pytest.mark.parametrize("dataset", ["gradtrades", "pregrad", "padfeed", "meteora-pools"])
+@pytest.mark.parametrize("dataset", ["gradtrades", "pregrad", "padfeed", "meteora-pools", "curvetape", "launchmeta", "gradholders"])
 def test_schema_is_bundled(dataset):
     text = lt.schema(dataset)
     assert text.startswith(f"# {dataset} schema")
@@ -29,7 +29,7 @@ def test_schema_unknown():
 def test_cli_datasets(capsys):
     assert main(["datasets"]) == 0
     out = capsys.readouterr().out.splitlines()
-    assert len(out) == 4 and out[0].startswith("gradtrades ")
+    assert len(out) == 7 and out[0].startswith("gradtrades ")
 
 
 def test_cli_schema(capsys):

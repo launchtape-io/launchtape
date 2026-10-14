@@ -9,6 +9,9 @@ UTC day, as gzipped JSON lines (`.jsonl.gz`) and as Parquet (`.parquet`, the sam
 | `pregrad` | Who is behind each pump.fun launch: creator and its funding, curve and graduation-slot buyers, the cap path, and a +10 min outcome |
 | `padfeed` | Graduations on Meteora DBC and Raydium LaunchLab: migration facts, pool balances every few seconds, top holders, US$ quote prices |
 | `meteora-pools` | Per-minute price, TVL, volume and exact fees for ~200 Meteora DLMM pools |
+| `curvetape` | Every trade on every pump.fun bonding curve from creation to graduation, plus creations, completions and migrations (from 2026-10-13) |
+| `launchmeta` | Every new pump.fun coin's metadata and a SHA-256 of its picture, at creation and at graduation (from 2026-10-13) |
+| `gradholders` | Each pump.fun graduate's 20 largest token accounts with owners and shares at +1, +10 and +60 minutes (from 2026-10-14) |
 
 A free 2-hour sample of every dataset is on the site; `launchtape` downloads it, checks its SHA-256 and reads it.
 

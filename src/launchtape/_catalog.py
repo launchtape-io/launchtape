@@ -31,6 +31,21 @@ _DATASETS = (
         "meteora-pools",
         "Per-minute price, TVL, volume and exact fees for ~200 Meteora DLMM pools",
     ),
+    Dataset(
+        "curvetape",
+        "Every trade on every pump.fun bonding curve from creation to graduation (wallet, tokens, SOL, fees, "
+        "cap and reserves), plus creations, completions and migrations (from 2026-10-13)",
+    ),
+    Dataset(
+        "launchmeta",
+        "Every new pump.fun coin's metadata (name, ticker, description, website) and a SHA-256 of its picture, "
+        "at creation and at graduation (from 2026-10-13)",
+    ),
+    Dataset(
+        "gradholders",
+        "Each pump.fun graduate's 20 largest token accounts with owners and shares at +1, +10 and +60 minutes "
+        "(from 2026-10-14)",
+    ),
 )
 
 DATASETS = tuple(d.name for d in _DATASETS)
