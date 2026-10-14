@@ -2,6 +2,8 @@
 
 Who is behind each pump.fun launch, as raw facts (addresses, amounts, times). No wallet labels, no risk flags, no images. Sources: PumpPortal free websocket (creations, migrations), Solana public RPC (bonding curves, transactions). Amounts in SOL; `pct` = % of the 1,000,000,000 supply; times in ms unless the name ends in `S` (seconds).
 
+**Parquet:** every day file also ships as `pregrad-YYYY-MM-DD.parquet`, with the same fields as columns: one table for all row types (a field a row does not have is null), `t` integer ms, nested objects as structs and arrays as lists; `curve`, `src` and `cross` (text in some row types, an object or a number in others) are text columns, an object or number as its JSON text.
+
 | type | field | type | meaning |
 |---|---|---|---|
 | create | t, mint, sig | number, string, string | coin creation |

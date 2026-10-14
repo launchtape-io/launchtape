@@ -2,6 +2,8 @@
 
 One JSON object per line. Every row has `type` and `t` (ms since 1970 UTC, when our recorder received it). SOL amounts in SOL, token amounts in whole tokens (6 decimals). Source: Solana public RPC (PumpSwap program logs), first 30 minutes after each pump.fun graduation.
 
+**Parquet:** every day file also ships as `gradtrades-YYYY-MM-DD.parquet`, with the same fields as columns: one table for all row types (a field a row does not have is null), `t` integer ms, nested objects as structs and arrays as lists.
+
 | type | field | type | meaning |
 |---|---|---|---|
 | grad | t | number | graduation time (ms; chain block time for late pick-ups) |

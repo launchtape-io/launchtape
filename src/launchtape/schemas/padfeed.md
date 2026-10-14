@@ -2,6 +2,8 @@
 
 Graduations on two non-pump.fun Solana launchpads: `dbc` = Meteora Dynamic Bonding Curve (Bags, Jupiter Studio, ...) -> DAMM v2 pool, `ray` = Raydium LaunchLab (bonk.fun etc.) -> Raydium CPMM pool. Each coin followed 20 min (dbc) / 30 min (ray). Source: Solana RPC; US$ quote prices from Jupiter's free price API.
 
+**Parquet:** every day file also ships as `padfeed-YYYY-MM-DD.parquet`, with the same fields as columns: one table for all row types (a field a row does not have is null), `t` integer ms, nested objects as structs and arrays as lists; `usd` is a map from quote mint to US$ price.
+
 | type | field | type | meaning |
 |---|---|---|---|
 | all | t | number | ms when recorded |

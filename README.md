@@ -1,7 +1,7 @@
 # launchtape
 
-Python access to [Launch Tape](https://launchtape.io): daily files of Solana launch data, one gzipped JSON-lines
-file per dataset per UTC day.
+Python access to [Launch Tape](https://launchtape.io): daily files of Solana launch data, one file per dataset per
+UTC day, as gzipped JSON lines (`.jsonl.gz`) and as Parquet (`.parquet`, the same rows as typed columns).
 
 | Dataset | What it is |
 |---|---|
@@ -17,6 +17,7 @@ A free 2-hour sample of every dataset is on the site; `launchtape` downloads it,
 ```sh
 pip install launchtape              # needs only requests
 pip install "launchtape[pandas]"    # adds pandas for launchtape.frame()
+pip install "launchtape[parquet]"   # adds pyarrow, to read the Parquet files
 ```
 
 Python 3.9 or newer.
@@ -44,16 +45,32 @@ The sample is two hours, so the counts are small: it shows the shape of the data
 |---|---|
 | `lt.datasets()` | the datasets as `(name, description)` pairs |
 | `lt.schema(dataset)` | the schema as Markdown text (bundled, works offline) |
-| `lt.sample(dataset)` | downloads the free sample into `~/.cache/launchtape`, checks it against the site's `SHA256SUMS`, returns its path; a good cached copy is reused |
-| `lt.load(path_or_dataset, types=None, limit=None)` | streams the rows as dicts; `types` keeps only rows whose `type` is one of them, `limit` stops after that many rows; a dataset name reads its sample |
+| `lt.sample(dataset, format="jsonl")` | downloads the free sample into `~/.cache/launchtape`, checks it against the site's `SHA256SUMS`, returns its path; a good cached copy is reused; `format="parquet"` for the Parquet copy |
+| `lt.load(path_or_dataset, types=None, limit=None)` | streams the rows as dicts (a `.jsonl.gz` or `.parquet` path); `types` keeps only rows whose `type` is one of them, `limit` stops after that many rows; a dataset name reads its sample |
 | `lt.frame(path_or_dataset, types=None, limit=None)` | the same rows as a pandas DataFrame (nested fields stay dicts/lists) |
-| `lt.fetch(link_or_token, dataset, day, dest=None)` | downloads a paid day file from your delivery link, checks it against its `.manifest.json`, returns its path |
+| `lt.fetch(link_or_token, dataset, day, dest=None, format="jsonl")` | downloads a paid day file from your delivery link, checks it against its `.manifest.json`, returns its path; `format="parquet"` for the Parquet copy |
 
 ```python
 for row in lt.load("gradtrades", types="grad", limit=5):      # streams, so a 5-million-row day is fine
     print(row["mint"], row["capSol"])
 
 path = lt.fetch("https://launchtape.io/dl/<token>", "pregrad", "2026-10-11", dest="data/")
+pq = lt.fetch("https://launchtape.io/dl/<token>", "gradtrades", "2026-10-11", dest="data/", format="parquet")
+```
+
+### Parquet
+
+Every day file and sample also comes as Parquet: the same rows, checked against the `.jsonl.gz` before it ships, as
+one table whose columns are every field of every row type (null where a row does not have the field). `t` stays integer
+milliseconds, nested objects are structs and arrays lists, padfeed's `usd` is a map keyed by quote mint, and pregrad's
+`curve`, `src` and `cross` (text in some row types, an object or a number in others) are text columns, an object or
+number as its JSON text. Read it with pandas directly, or through `lt.load` / `lt.frame` (needs pyarrow):
+
+```python
+import pandas as pd
+df = pd.read_parquet(lt.sample("pregrad", format="parquet"))   # loads in a fraction of the JSON time
+cols = ["type", "bt", "mint", "side", "user", "quoteAmount"]
+trades = pd.read_parquet("data/gradtrades-2026-10-11.parquet", columns=cols)   # only the columns you need
 ```
 
 Times: `t` is milliseconds since 1970 UTC (`pd.to_datetime(df["t"], unit="ms", utc=True)`). Coverage gaps are rows
@@ -68,10 +85,12 @@ Environment: `LAUNCHTAPE_CACHE` changes the cache folder.
 ```sh
 launchtape datasets
 launchtape sample gradtrades                  # prints the cached path
+launchtape sample pregrad --format parquet    # the Parquet copy of the sample
 launchtape head gradtrades -n 5               # first rows of the sample, as JSON lines
 launchtape head pregrad -t record -n 2        # only rows of one type
 launchtape schema pregrad
 launchtape fetch https://launchtape.io/dl/<token> pregrad 2026-10-11 -o data/
+launchtape fetch https://launchtape.io/dl/<token> pregrad 2026-10-11 -o data/ --format parquet
 ```
 
 `python -m launchtape ...` works too.

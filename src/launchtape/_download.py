@@ -1,4 +1,7 @@
-"""Downloads: the free samples and paid day files. A file is kept only after its SHA-256 matches the published one."""
+"""Downloads: the free samples and paid day files. A file is kept only after its SHA-256 matches the published one.
+
+Every file comes in two formats with the same rows (since Oct 13 2026): gzipped JSON lines (format="jsonl", the default)
+and Parquet (format="parquet", typed columns)."""
 
 from __future__ import annotations
 
@@ -28,6 +31,16 @@ _HEX64 = re.compile(r"[0-9a-fA-F]{64}")
 _TOKEN = re.compile(r"[0-9a-f]{32}")
 _NAME = re.compile(r"[a-z][a-z0-9-]*")
 _DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+FORMATS = ("jsonl", "parquet")
+_EXT = {"jsonl": ".jsonl.gz", "parquet": ".parquet"}
+
+
+def _format(fmt: str) -> str:
+    f = str(fmt).strip().lower()
+    if f not in _EXT:
+        raise ValueError(f"format must be one of {', '.join(FORMATS)}, got {fmt!r}")
+    return f
 
 
 class LaunchTapeError(Exception):
@@ -119,16 +132,18 @@ def _parse_sums(text: str) -> Dict[str, str]:
     return sums
 
 
-def sample(dataset: str, *, cache: Optional[PathLike] = None, progress: bool = False) -> Path:
+def sample(dataset: str, *, cache: Optional[PathLike] = None, progress: bool = False, format: str = "jsonl") -> Path:
     """Download the free 2-hour sample of a dataset (checked against the site's SHA256SUMS) and return its path.
 
+    format: "jsonl" (gzipped JSON lines, the default) or "parquet" (the same rows as typed columns).
     A sample already in the cache is reused when its hash still matches. If the site cannot be reached, a sample
     already in the cache (checked when it was downloaded) is returned with a warning.
     """
     check_dataset(dataset)
+    ext = _EXT[_format(format)]
     folder = Path(cache).expanduser() if cache is not None else cache_dir()
-    pattern = re.compile(rf"{re.escape(dataset)}-\d{{4}}-\d{{2}}-\d{{2}}-\d{{4}}-\d{{4}}utc\.jsonl\.gz")
-    kept = sorted(p for p in folder.glob(f"{dataset}-*utc.jsonl.gz") if pattern.fullmatch(p.name))
+    pattern = re.compile(rf"{re.escape(dataset)}-\d{{4}}-\d{{2}}-\d{{2}}-\d{{4}}-\d{{4}}utc{re.escape(ext)}")
+    kept = sorted(p for p in folder.glob(f"{dataset}-*utc{ext}") if pattern.fullmatch(p.name))
     base = base_url()
     try:
         with _get(f"{base}/sample/SHA256SUMS") as r:
@@ -140,7 +155,7 @@ def sample(dataset: str, *, cache: Optional[PathLike] = None, progress: bool = F
         raise
     names = sorted(n for n in sums if pattern.fullmatch(n))
     if not names:
-        raise LaunchTapeError(f"no {dataset} sample is listed in {base}/sample/SHA256SUMS")
+        raise LaunchTapeError(f"no {dataset} sample ({ext}) is listed in {base}/sample/SHA256SUMS")
     name = names[-1]
     target = folder / name
     if not (target.is_file() and sha256_file(target) == sums[name]):
@@ -179,18 +194,21 @@ def _day(day: Union[str, _dt.date]) -> str:
 
 
 def fetch(url_or_token: str, dataset: str, day: Union[str, _dt.date], dest: Optional[PathLike] = None,
-          *, progress: bool = False) -> Path:
+          *, progress: bool = False, format: str = "jsonl") -> Path:
     """Download one paid day file from a delivery link and return its path.
 
     url_or_token: the link from your delivery mail (https://launchtape.io/dl/<token>) or just its token.
     day: the UTC day, "YYYY-MM-DD" or a date. dest: a folder (default: the current folder) or a file path ending
-    in .gz. The file is checked against the SHA-256 in <dataset>-<day>.manifest.json, which is saved next to it.
-    A file already at the destination with the right hash is not downloaded again.
+    in .gz (.parquet for format="parquet"). format: "jsonl" (gzipped JSON lines, the default) or "parquet" (the same
+    rows as typed columns). The file is checked against the SHA-256 in <dataset>-<day>.manifest.json, which is saved
+    next to it. A file already at the destination with the right hash is not downloaded again.
     """
     if not _NAME.fullmatch(str(dataset)):
         raise ValueError(f"not a dataset name: {dataset!r}")
+    fmt = _format(format)
     stem = f"{dataset}-{_day(day)}"
-    fname = f"{stem}.jsonl.gz"
+    gz_name = f"{stem}.jsonl.gz"
+    fname = f"{stem}{_EXT[fmt]}"
     base = _delivery_base(url_or_token)
     with _get(f"{base}/{stem}.manifest.json") as r:
         raw = r.content
@@ -199,7 +217,13 @@ def fetch(url_or_token: str, dataset: str, day: Union[str, _dt.date], dest: Opti
     except ValueError as e:
         raise LaunchTapeError(f"{stem}.manifest.json is not valid JSON: {e}") from None
     files = manifest.get("files") if isinstance(manifest, dict) else None
-    entry = next((f for f in files or [] if isinstance(f, dict) and f.get("file") == fname), None)
+    entry = next((f for f in files or [] if isinstance(f, dict) and f.get("file") == gz_name), None)
+    if fmt == "parquet":  # the Parquet copy is listed inside its .jsonl.gz's entry: {"parquet": {file, bytes, sha256}}
+        pq = entry.get("parquet") if entry else None
+        if not (isinstance(pq, dict) and pq.get("file") == fname):
+            raise LaunchTapeError(f"{stem}.manifest.json lists no Parquet copy of {gz_name}; the .jsonl.gz is there "
+                                  "(fetch it without format='parquet'), or write to us through launchtape.io")
+        entry = pq
     sha = entry.get("sha256") if entry else None
     if not isinstance(sha, str) or not _HEX64.fullmatch(sha):
         raise LaunchTapeError(f"{stem}.manifest.json has no SHA-256 for {fname}")
@@ -208,7 +232,7 @@ def fetch(url_or_token: str, dataset: str, day: Union[str, _dt.date], dest: Opti
         target = Path.cwd() / fname
     else:
         target = Path(dest).expanduser()
-        if target.is_dir() or not target.name.endswith(".gz"):
+        if target.is_dir() or not target.name.endswith(".gz" if fmt == "jsonl" else ".parquet"):
             target = target / fname
     if not (target.is_file() and sha256_file(target) == sha.lower()):
         _download(f"{base}/{fname}", target, sha, total=size if isinstance(size, int) else None, progress=progress)
