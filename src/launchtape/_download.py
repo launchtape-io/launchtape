@@ -133,7 +133,11 @@ def _parse_sums(text: str) -> Dict[str, str]:
 
 
 def sample(dataset: str, *, cache: Optional[PathLike] = None, progress: bool = False, format: str = "jsonl") -> Path:
-    """Download the free 2-hour sample of a dataset (checked against the site's SHA256SUMS) and return its path.
+    """Download the free sample of a dataset (checked against the site's SHA256SUMS) and return its path.
+
+    Since Oct 14 2026 the site's free files are the graduates CSV and one coin's trades (https://launchtape.io/#sample),
+    not 2-hour cuts of the datasets, so this raises LaunchTapeError unless the site lists one again; a full day of a
+    dataset is a paid download (fetch).
 
     format: "jsonl" (gzipped JSON lines, the default) or "parquet" (the same rows as typed columns).
     A sample already in the cache is reused when its hash still matches. If the site cannot be reached, a sample
@@ -155,7 +159,9 @@ def sample(dataset: str, *, cache: Optional[PathLike] = None, progress: bool = F
         raise
     names = sorted(n for n in sums if pattern.fullmatch(n))
     if not names:
-        raise LaunchTapeError(f"no {dataset} sample ({ext}) is listed in {base}/sample/SHA256SUMS")
+        raise LaunchTapeError(f"no {dataset} sample ({ext}) is listed in {base}/sample/SHA256SUMS: the free files are the "
+                              f"graduates CSV and one coin's trades ({base}/#sample); a full day of {dataset} is $10 at "
+                              f"{base}/?plan=day1#buy (then: launchtape fetch <link> {dataset} <day>)")
     name = names[-1]
     target = folder / name
     if not (target.is_file() and sha256_file(target) == sums[name]):

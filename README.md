@@ -13,7 +13,7 @@ UTC day, as gzipped JSON lines (`.jsonl.gz`) and as Parquet (`.parquet`, the sam
 | `launchmeta` | Every new pump.fun coin's metadata and a SHA-256 of its picture, at creation and at graduation (from 2026-10-13) |
 | `gradholders` | Each pump.fun graduate's 20 largest token accounts with owners and shares at +1, +10 and +60 minutes (from 2026-10-14) |
 
-A free 2-hour sample of every dataset is on the site; `launchtape` downloads it, checks its SHA-256 and reads it.
+Every file comes with a SHA-256; `launchtape` downloads a day you bought (`fetch`), checks it and reads it. The free files on the site (the graduates CSV and one coin's trades, [launchtape.io/#sample](https://launchtape.io/#sample)) are plain CSV / JSON lines you can open without it; `lt.sample(dataset)` only works while the site lists a free sample of that dataset (none since Oct 14 2026), so a full day ($10, [launchtape.io/?plan=day1#buy](https://launchtape.io/?plan=day1#buy)) is the way in.
 
 ## Install
 
@@ -32,7 +32,7 @@ Share of pump.fun graduates that touched -80% in their first 10 minutes, split b
 ```python
 import launchtape as lt
 
-path = lt.sample("pregrad")                                    # free sample, SHA-256 checked, cached
+path = lt.fetch(link, "pregrad", "2026-10-12")                 # from your download link, SHA-256 checked, cached
 rec = lt.frame(path, types="record")[["mint", "sym", "instant", "ageS"]]
 out = lt.frame(path, types="outcome")[["mint", "minDrop", "maxGain", "crashed"]]
 out = out.dropna(subset=["minDrop"])                           # no pool trades = no prices
@@ -93,10 +93,9 @@ Environment: `LAUNCHTAPE_CACHE` changes the cache folder.
 
 ```sh
 launchtape datasets
-launchtape sample gradtrades                  # prints the cached path
-launchtape sample pregrad --format parquet    # the Parquet copy of the sample
-launchtape head gradtrades -n 5               # first rows of the sample, as JSON lines
-launchtape head pregrad -t record -n 2        # only rows of one type
+launchtape head data/gradtrades-2026-10-11.jsonl.gz -n 5      # first rows of a file, as JSON lines
+launchtape head data/pregrad-2026-10-11.jsonl.gz -t record -n 2   # only rows of one type
+launchtape sample pregrad                     # a dataset's free sample, when the site lists one (none since Oct 14 2026)
 launchtape schema pregrad
 launchtape fetch https://launchtape.io/dl/<token> pregrad 2026-10-11 -o data/
 launchtape fetch https://launchtape.io/dl/<token> pregrad 2026-10-11 -o data/ --format parquet
@@ -112,10 +111,10 @@ your entry, what the first 10 minutes did, a plain verdict, and the same rules f
 It is the same replay as the prompt on [launchtape.io/test](https://launchtape.io/test), for when your AI can't run code.
 
 ```sh
-launchtape backtest                                  # the example rules on the free 2-hour sample
+launchtape backtest --gradtrades data/gradtrades-2026-10-11.jsonl.gz   # the example rules on a day you bought
 launchtape backtest --template > rules.json          # the rules as a file to edit
 launchtape backtest --rules rules.json
-launchtape backtest --rules rules.json --gradtrades data/gradtrades-2026-10-11.jsonl.gz   # a paid day
+launchtape backtest --rules rules.json --gradtrades data/gradtrades-2026-10-11.jsonl.gz   # your rules
 launchtape backtest --rules rules.json --json        # every trade, as JSON
 ```
 
@@ -155,8 +154,7 @@ print(res["summary"]["medianReturnPct"], len(res["trades"]))
 ## Full days: prices and how to buy
 
 - **One day, $10 once:** any UTC day you pick (from October 4 2026): that day's `gradtrades` and `pregrad`, the test prompt
-  with its file names, and what the example rules returned that day. On the free sample, `launchtape backtest` ends its
-  verdict with the link: <https://launchtape.io/?plan=day1#buy>.
+  with its file names, and what the example rules returned that day: <https://launchtape.io/?plan=day1#buy>.
 - **Starter, $10 a month:** all 7 datasets, each new day's files as the UTC day closes, plus the last 7 days on file.
 - **Full history, $49 a month:** everything in Starter, plus every day on file back to October 3 2026.
 

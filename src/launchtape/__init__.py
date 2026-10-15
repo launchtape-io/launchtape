@@ -1,7 +1,7 @@
 """Launch Tape: daily files of Solana launch data (https://launchtape.io) in Python.
 
     import launchtape as lt
-    path = lt.sample("pregrad")              # free 2-hour sample, SHA-256 checked
+    path = lt.fetch(link, "pregrad", day)    # a day you bought, SHA-256 checked (lt.sample: the free sample, when listed)
     for row in lt.load(path, types="record", limit=3):
         print(row["sym"], row["instant"])
 """

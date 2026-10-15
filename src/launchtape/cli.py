@@ -22,7 +22,7 @@ def _parser() -> argparse.ArgumentParser:
 
     sub.add_parser("datasets", help="list the datasets")
 
-    s = sub.add_parser("sample", help="download a free 2-hour sample (SHA-256 checked) and print its path")
+    s = sub.add_parser("sample", help="download a dataset's free sample, if the site lists one (SHA-256 checked), and print its path")
     s.add_argument("dataset", nargs="+", choices=DATASETS)
     s.add_argument("--format", choices=FORMATS, default="jsonl", help="jsonl (gzipped JSON lines, default) or parquet")
 
@@ -47,13 +47,13 @@ def _parser() -> argparse.ArgumentParser:
     s = sub.add_parser("backtest", help="replay your trading rules on pump.fun graduates with honest fills and print "
                        "a report", description="Replay simple rules (buy N s after graduation; sell at a time, a stop "
                        "or a take-profit) coin by coin on gradtrades, filling every signal at the end of the next "
-                       "slot with fees, slippage and your size's price impact. Default: the example rules on the free "
-                       "2-hour sample. Same steps as the prompt on https://launchtape.io/test.")
+                       "slot with fees, slippage and your size's price impact. Point --gradtrades at a day file (one day is $10 at "
+                       "https://launchtape.io/?plan=day1#buy). Same steps as the prompt on https://launchtape.io/test.")
     s.add_argument("--rules", metavar="FILE", help="a rules JSON file (see --template); default: the example rules")
     s.add_argument("--gradtrades", metavar="PATH", help="a gradtrades .jsonl.gz or .parquet file, e.g. a paid day "
-                   "(default: the free sample)")
+                   "(default: the free sample, when the site lists one)")
     s.add_argument("--pregrad", metavar="PATH", help="the pregrad file of the same day, for filters and the "
-                   "first-10-minutes numbers (default: found next to --gradtrades, or the free sample)")
+                   "first-10-minutes numbers (default: found next to --gradtrades)")
     s.add_argument("--json", action="store_true", help="print the full result (every trade) as JSON instead")
     s.add_argument("--template", action="store_true", help="print the example rules as JSON to edit, and exit")
     return p

@@ -1,6 +1,6 @@
 """Replay simple trading rules on Launch Tape's pump.fun graduates, coin by coin, with honest fills.
 
-    launchtape backtest                                   # the example rules on the free 2-hour sample
+    launchtape backtest --gradtrades gradtrades-<day>.jsonl.gz   # the example rules on a day you bought
     launchtape backtest --rules rules.json                # your rules
     launchtape backtest --rules rules.json --gradtrades data/gradtrades-2026-10-11.jsonl.gz
 
