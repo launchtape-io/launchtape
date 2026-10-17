@@ -6,7 +6,8 @@ import json
 import pytest
 
 import launchtape as lt
-from launchtape.backtest import Rules, backtest, backtest_report, pregrad_for, rules_from, rules_template
+from launchtape.backtest import (MINDROP_BAD_FROM_MS, Rules, backtest, backtest_report, graduates_for, pregrad_for,
+                                  rules_from, rules_template)
 from launchtape.cli import main
 from conftest import gz_bytes
 
@@ -216,7 +217,64 @@ def test_outcome_numbers(tmp_path):
     pg = [outcome("A", -85, 10, dumpS=100), outcome("B", -10, 150, dumpS=200), outcome("C", -50, 250), outcome("D", -90, 0)]
     o = run(tmp_path, BASIC, pg)["outcomes"]
     assert o == {"graduates": 4, "touchedMinus80Pct": 50.0, "touched2xPct": 50.0, "touched3xPct": 25.0,
-                 "firstDumpMedianS": 150.0, "withDump": 2}
+                 "firstDumpMedianS": 150.0, "withDump": 2, "source": "pregrad", "leftOut": 0}
+
+
+CSV_HEAD = ("mint,symbol,name,grad_time_utc,pool,cap_sol_at_grad,followed,curve_fill_sec,dev_hold_pct_at_grad,tape_sec,"
+            "trades_10m,buyers_10m,sellers_10m,ref_cap_sol,low_10m_pct,high_10m_pct,touched_minus80_10m,touched_2x_10m,"
+            "first_big_sell_sec,first_big_sell_pool_pct,dump_sec,end_10m_pct,end_30m_pct,data_gap")
+
+
+def csv_row(mint, low, high, dump=""):
+    lo, hi = ("" if low is None else low), ("" if high is None else high)
+    t80 = "" if low is None else int(low <= -80)
+    t2x = "" if high is None else int(high >= 100)
+    return f"{mint},{mint},{mint},2026-10-14 12:00:00,P,496,1,30,5,1800,10,5,5,500,{lo},{hi},{t80},{t2x},,,{dump},0,0,0"
+
+
+def test_outcome_numbers_from_the_graduates_csv(tmp_path):
+    # Oct 17 2026: the graduates CSV (low/high from the +10 s price, chain order) wins over pregrad minDrop, found next to
+    # the gradtrades file; a coin with no trades (empty low/high) has no prices and is left out
+    pg = [outcome("A", -95, 10), outcome("B", -90, 150), outcome("C", -85, 250)]       # the fake -80s
+    (tmp_path / "graduates-2026-10-10.csv").write_text(
+        "\n".join([CSV_HEAD, csv_row("A", -20.5, 10, 100), csv_row("B", -85.0, 150, 200), csv_row("C", -50, 250),
+                   csv_row("D", None, None)]) + "\n", encoding="utf-8")
+    res = run(tmp_path, BASIC, pg)
+    assert res["outcomes"] == {"graduates": 3, "touchedMinus80Pct": 33.3, "touched2xPct": 66.7, "touched3xPct": 33.3,
+                               "firstDumpMedianS": 150.0, "withDump": 2, "source": "graduates", "leftOut": 0}
+    assert res["files"]["graduates"] == "graduates-2026-10-10.csv"
+    assert "3 graduates with prices, from graduates-2026-10-10.csv" in backtest_report(res)
+    assert graduates_for(tmp_path / "gradtrades-2026-10-10.jsonl.gz") == tmp_path / "graduates-2026-10-10.csv"
+    assert graduates_for(tmp_path / "gradtrades-2026-10-11.jsonl.gz") is None
+    assert graduates_for(tmp_path / "pregrad-2026-10-10.jsonl.gz") is None
+    # passed by hand; a file that is not a graduates CSV is refused
+    other = tmp_path / "x.csv"
+    other.write_text("mint,minDrop\nA,-90\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="not a Launch Tape graduates CSV"):
+        backtest(None, tmp_path / "gradtrades-2026-10-10.jsonl.gz", tmp_path / "pregrad-2026-10-10.jsonl.gz", other)
+    with pytest.raises(FileNotFoundError, match="graduates CSV"):
+        backtest(None, tmp_path / "gradtrades-2026-10-10.jsonl.gz", None, tmp_path / "nope.csv")
+
+
+def test_pregrad_mindrop_left_out_from_oct_14_0340_utc(tmp_path):
+    # no graduates CSV: pregrad outcome rows of graduations from 2026-10-14 03:40 UTC on are not counted (minDrop is wrong)
+    late = MINDROP_BAD_FROM_MS
+    pg = [outcome("A", -85, 10), outcome("B", -10, 150),
+          {**outcome("C", -90, 0), "t0": late, "t": late + 600_000},
+          {**outcome("D", -88, 0), "t0": late + 5_000, "t": late + 605_000}]
+    res = run(tmp_path, BASIC, pg)
+    o = res["outcomes"]
+    assert (o["graduates"], o["touchedMinus80Pct"], o["touched2xPct"], o["leftOut"], o["source"]) == (2, 50.0, 50.0, 2, "pregrad")
+    text = " ".join(backtest_report(res).split())
+    assert "2 graduates from 2026-10-14 03:40 UTC on are left out: pregrad minDrop is wrong" in text
+    assert "--graduates" in text
+    # just before the cutoff still counts
+    o = run(tmp_path, BASIC, [{**outcome("E", -85, 0), "t0": late - 1}])["outcomes"]
+    assert (o["graduates"], o["touchedMinus80Pct"], o["leftOut"]) == (1, 100.0, 0)
+    # an Oct 14+ day without the CSV: no touched numbers at all rather than wrong ones
+    o = run(tmp_path, BASIC, [{**outcome("F", -90, 0), "t0": late + 1}])["outcomes"]
+    assert o["touchedMinus80Pct"] is None and o["leftOut"] == 1
+    assert "n/a" in backtest_report(run(tmp_path, BASIC, [{**outcome("F", -90, 0), "t0": late + 1}]))
 
 
 @pytest.mark.parametrize("spec, msg", [

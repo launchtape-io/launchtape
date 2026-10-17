@@ -27,6 +27,7 @@ How a trade is filled (the same steps as the prompt on https://launchtape.io/tes
 
 from __future__ import annotations
 
+import csv
 import json
 import math
 import os
@@ -40,6 +41,12 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 from ._read import _is_parquet, _open, _pyarrow, load
 
 WINDOW_S = 1800          # each graduate's trades are recorded for 30 minutes
+# From 2026-10-14 03:40 UTC the pregrad outcome rows' minDrop also counts the graduation-slot trades repaired from blocks
+# (priced before the farm's big graduation buy), so it reads -80..-90% on coins that never fell after the +10 s price.
+# The "first 10 minutes" numbers then come from the day's graduates CSV (low_10m_pct / high_10m_pct, measured in chain
+# order from the +10 s reference trade on); pregrad outcome rows of graduations from this time on are left out.
+MINDROP_BAD_FROM_MS = 1_791_949_200_000   # 2026-10-14 03:40 UTC
+_GRAD_CSV_COLS = ("mint", "low_10m_pct", "high_10m_pct", "dump_sec")
 _RULES_DOC = {
     "entry_s": "buy this many seconds after graduation",
     "exit_s": "sell this many seconds after graduation (1800 or more: hold to the end of the 30 minutes)",
@@ -496,9 +503,48 @@ def _pregrad(path: Path) -> Tuple[Dict[str, Dict[str, Any]], List[Dict[str, Any]
             records[mint] = {"sym": r.get("sym"), "ageS": r.get("ageS"), "creatorPctAtGrad": r.get("creatorPctAtGrad")}
         else:
             dump = r.get("dump")
-            outcomes[mint] = {"minDrop": r.get("minDrop"), "maxGain": r.get("maxGain"),
-                              "dumpS": dump.get("tS") if isinstance(dump, dict) else None}
+            t0 = r.get("t0") if isinstance(r.get("t0"), (int, float)) else r.get("t")
+            outcomes[mint] = {"low": r.get("minDrop"), "high": r.get("maxGain"),
+                              "dumpS": dump.get("tS") if isinstance(dump, dict) else None,
+                              "bad": isinstance(t0, (int, float)) and t0 >= MINDROP_BAD_FROM_MS}
     return records, list(outcomes.values())
+
+
+def _num(v: Any) -> Optional[float]:
+    if v is None or str(v).strip() == "":
+        return None
+    try:
+        x = float(v)
+    except ValueError:
+        return None
+    return x if math.isfinite(x) else None
+
+
+def _graduates(path: Path) -> List[Dict[str, Any]]:
+    """The graduates CSV's 10-minute moves, one dict per coin that had trades (an empty low/high = no prices)."""
+    out: List[Dict[str, Any]] = []
+    with open(path, newline="", encoding="utf-8") as fh:
+        rd = csv.DictReader(fh)
+        missing = [c for c in _GRAD_CSV_COLS if c not in (rd.fieldnames or [])]
+        if missing:
+            raise ValueError(f"{path}: not a Launch Tape graduates CSV (no column {', '.join(missing)})")
+        for r in rd:
+            low, high = _num(r.get("low_10m_pct")), _num(r.get("high_10m_pct"))
+            if low is None and high is None:
+                continue
+            out.append({"low": low, "high": high, "dumpS": _num(r.get("dump_sec")), "bad": False})
+    return out
+
+
+def graduates_for(gradtrades: Union[str, "os.PathLike[str]"]) -> Optional[Path]:
+    """The graduates CSV of the same day/window next to a gradtrades file (graduates-<day>.csv, on your download
+    page next to the day's files), if there is one."""
+    p = Path(gradtrades)
+    m = re.match(r"^gradtrades-(\d{4}-\d{2}-\d{2}(?:-\d{4}-\d{4}utc)?)\.(?:jsonl\.gz|parquet)$", p.name)
+    if not m:
+        return None
+    q = p.with_name(f"graduates-{m.group(1)}.csv")
+    return q if q.is_file() else None
 
 
 def pregrad_for(gradtrades: Union[str, "os.PathLike[str]"]) -> Optional[Path]:
@@ -531,13 +577,17 @@ def _mean(xs: List[float]) -> Optional[float]:
 
 def backtest(rules: Union[None, Rules, Dict[str, Any], str, "os.PathLike[str]"] = None,
              gradtrades: Union[None, str, "os.PathLike[str]"] = None,
-             pregrad: Union[None, str, "os.PathLike[str]"] = None, *, progress: bool = False) -> Dict[str, Any]:
+             pregrad: Union[None, str, "os.PathLike[str]"] = None,
+             graduates: Union[None, str, "os.PathLike[str]"] = None, *, progress: bool = False) -> Dict[str, Any]:
     """Replay the rules on a gradtrades file (default: the free sample) and return the result as a dict.
 
     rules: a dict, a JSON file path, a Rules, or None for the example rules (buy at +15 s, sell at +180 s, stop -20%).
     gradtrades: a gradtrades .jsonl.gz or .parquet path (a paid day file or the sample); None downloads the sample.
-    pregrad: the pregrad file of the same day, for the filters, coin names and the "first 10 minutes" numbers; None
-    looks next to the gradtrades file (or downloads the sample's when gradtrades is None too).
+    pregrad: the pregrad file of the same day, for the filters and coin names; None looks next to the gradtrades file
+    (or downloads the sample's when gradtrades is None too).
+    graduates: the graduates CSV of the same day (graduates-<day>.csv), for the "first 10 minutes" numbers (touched
+    -80% / 2x / 3x from its low_10m_pct / high_10m_pct); None looks next to the gradtrades file. Without it they come
+    from the pregrad outcome rows, leaving out graduations from 2026-10-14 03:40 UTC on (pregrad minDrop is wrong there).
     """
     from ._download import sample             # here, so the module imports without the network code being used
 
@@ -555,15 +605,21 @@ def backtest(rules: Union[None, Rules, Dict[str, Any], str, "os.PathLike[str]"] 
     if r.filters and pg is None:
         raise ValueError("these rules filter on pregrad facts (fill time / dev holding): pass the pregrad file of the "
                          "same day with --pregrad")
+    gc = Path(graduates).expanduser() if graduates is not None else (graduates_for(gt) if gradtrades is not None else None)
+    if gc is not None and not gc.is_file():
+        raise FileNotFoundError(f"no such graduates CSV: {gc}")
     records, outcomes = _pregrad(Path(pg)) if pg is not None else (None, None)
+    if gc is not None:
+        outcomes = _graduates(gc)
 
     rp = _Replay(r, records)
     _feed(gt, rp)
     rp.finish()
-    return _result(r, rp, gt, pg, records, outcomes)
+    return _result(r, rp, gt, pg, records, outcomes, gc)
 
 
-def _result(r: Rules, rp: _Replay, gt: Path, pg: Optional[Path], records, outcomes) -> Dict[str, Any]:
+def _result(r: Rules, rp: _Replay, gt: Path, pg: Optional[Path], records, outcomes,
+            gc: Optional[Path] = None) -> Dict[str, Any]:
     trades = []
     naive: List[float] = []
     rets: List[float] = []                    # exact returns and price moves (the trade rows carry rounded ones)
@@ -595,16 +651,19 @@ def _result(r: Rules, rp: _Replay, gt: Path, pg: Optional[Path], records, outcom
     stops = [t["priceMovePct"] for t in trades if t["exit"] == "stop"]
     outcome = None
     if outcomes is not None:
-        n = len(outcomes)
         dumps = [o["dumpS"] for o in outcomes if isinstance(o.get("dumpS"), (int, float))]
-        hit = lambda key, test: sum(1 for o in outcomes if isinstance(o.get(key), (int, float)) and test(o[key]))
+        good = [o for o in outcomes if not o["bad"]]       # pregrad rows from 2026-10-14 03:40 UTC on: minDrop is wrong
+        n = len(good)
+        hit = lambda key, test: sum(1 for o in good if isinstance(o.get(key), (int, float)) and test(o[key]))
         outcome = {
             "graduates": n,
-            "touchedMinus80Pct": round(hit("minDrop", lambda v: v <= -80) / n * 100, 1) if n else None,
-            "touched2xPct": round(hit("maxGain", lambda v: v >= 100) / n * 100, 1) if n else None,
-            "touched3xPct": round(hit("maxGain", lambda v: v >= 200) / n * 100, 1) if n else None,
+            "touchedMinus80Pct": round(hit("low", lambda v: v <= -80) / n * 100, 1) if n else None,
+            "touched2xPct": round(hit("high", lambda v: v >= 100) / n * 100, 1) if n else None,
+            "touched3xPct": round(hit("high", lambda v: v >= 200) / n * 100, 1) if n else None,
             "firstDumpMedianS": round(_median(dumps), 1) if dumps else None,
             "withDump": len(dumps),
+            "source": "graduates" if gc is not None else "pregrad",
+            "leftOut": len(outcomes) - n,
         }
     counts = {**rp.counts,
               "beforeFile": len(rp.before_file - rp.seen),
@@ -623,7 +682,8 @@ def _result(r: Rules, rp: _Replay, gt: Path, pg: Optional[Path], records, outcom
                 "hours": round((rp.last_t - rp.first_t) / 3_600_000, 1)}
     return {
         "rules": asdict(r),
-        "files": {"gradtrades": gt.name, "pregrad": Path(pg).name if pg is not None else None, "utc": span},
+        "files": {"gradtrades": gt.name, "pregrad": Path(pg).name if pg is not None else None,
+                  "graduates": gc.name if gc is not None else None, "utc": span},
         "coins": counts,
         "summary": {
             "trades": len(trades),
@@ -747,12 +807,19 @@ def backtest_report(res: Dict[str, Any]) -> str:
                 f"  median {_p(n['medianReturnPct'])}, mean {_p(n['meanReturnPct'])}, win rate {_p(n['winRatePct'], False)}"
                 "  <- what a naive backtest shows", ""]
     if o:
+        src = (f"{o['graduates']} graduates with prices, from {res['files']['graduates']}" if o["source"] == "graduates"
+               else f"{o['graduates']} graduates with an outcome row")
         out += [
-            f"What the first 10 minutes did ({o['graduates']} graduates with an outcome row)",
+            f"What the first 10 minutes did ({src})",
             f"  touched -80%            {_p(o['touchedMinus80Pct'], False):>8}   (vs the price 10 s after graduation)",
             f"  touched 2x              {_p(o['touched2xPct'], False):>8}",
             f"  touched 3x              {_p(o['touched3xPct'], False):>8}",
         ]
+        if o["leftOut"]:
+            out += ["  " + line for line in _wrap(
+                f"{o['leftOut']} graduates from 2026-10-14 03:40 UTC on are left out: pregrad minDrop is wrong from "
+                "then on. Save the day's graduates-<day>.csv (on your download page) next to the gradtrades file, "
+                "or pass --graduates, for every coin.", 74)]
         if o["firstDumpMedianS"] is not None:
             out.append(f"  first big dump          {o['firstDumpMedianS'] / 60:>7.1f} min   median after graduation "
                        f"({o['withDump']} coins had one)")

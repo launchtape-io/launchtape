@@ -52,8 +52,10 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--rules", metavar="FILE", help="a rules JSON file (see --template); default: the example rules")
     s.add_argument("--gradtrades", metavar="PATH", help="a gradtrades .jsonl.gz or .parquet file, e.g. a paid day "
                    "(default: the free sample, when the site lists one)")
-    s.add_argument("--pregrad", metavar="PATH", help="the pregrad file of the same day, for filters and the "
-                   "first-10-minutes numbers (default: found next to --gradtrades)")
+    s.add_argument("--pregrad", metavar="PATH", help="the pregrad file of the same day, for filters and coin names "
+                   "(default: found next to --gradtrades)")
+    s.add_argument("--graduates", metavar="PATH", help="the graduates CSV of the same day (graduates-<day>.csv from "
+                   "your download page), for the first-10-minutes numbers (default: found next to --gradtrades)")
     s.add_argument("--json", action="store_true", help="print the full result (every trade) as JSON instead")
     s.add_argument("--template", action="store_true", help="print the example rules as JSON to edit, and exit")
     return p
@@ -85,7 +87,7 @@ def _run(a: argparse.Namespace) -> int:
         if a.template:
             sys.stdout.write(rules_template())
             return 0
-        res = backtest(a.rules, a.gradtrades, a.pregrad, progress=progress)
+        res = backtest(a.rules, a.gradtrades, a.pregrad, a.graduates, progress=progress)
         sys.stdout.write(json.dumps(res, indent=1) + "\n" if a.json else backtest_report(res))
     return 0
 

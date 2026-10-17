@@ -31,20 +31,25 @@ Share of pump.fun graduates that touched -80% in their first 10 minutes, split b
 
 ```python
 import launchtape as lt
+import pandas as pd
 
-path = lt.fetch(link, "pregrad", "2026-10-12")                 # from your download link, SHA-256 checked, cached
-rec = lt.frame(path, types="record")[["mint", "sym", "instant", "ageS"]]
-out = lt.frame(path, types="outcome")[["mint", "minDrop", "maxGain", "crashed"]]
-out = out.dropna(subset=["minDrop"])                           # no pool trades = no prices
-df = rec.merge(out, on="mint")                                 # one row per graduate seen in both
-df["touched_minus80"] = df["minDrop"] <= -80                   # vs the price 10 s after graduation
-print(df.groupby("instant")["touched_minus80"].agg(["mean", "count"]))
+g = pd.read_csv("graduates-2026-10-12.csv")                    # from your download page: one row per graduate
+g = g.dropna(subset=["low_10m_pct"])                           # no pool trades = no prices
+g["instant"] = g["curve_fill_sec"] < 5                         # bonding curve filled within 5 s of creation
+print(g.groupby("instant")["touched_minus80_10m"].agg(["mean", "count"]))   # 1 = low_10m_pct <= -80
+
+path = lt.fetch(link, "pregrad", "2026-10-12")                 # who was behind each coin; SHA-256 checked, cached
+rec = lt.frame(path, types="record")[["mint", "sym", "instant", "ageS", "creatorPctAtGrad"]]
 print(lt.schema("pregrad"))                                    # every row type and field
 ```
 
-`crashed` is a different, milder flag: a trade at 60% of the running high or lower in the first 10 minutes (a 40%+ fall
-from the high), not an 80% drop. The sample is two hours, so the counts are small: it shows the shape of the data, not
-a result.
+For drops and highs, use the graduates CSV: `low_10m_pct` / `high_10m_pct` are the lowest / highest pool price in the
+first 10 minutes vs the price 10 s after graduation, in % (-80 = down 80%, 100 = 2x), read in chain order from that
+reference trade on; `touched_minus80_10m` / `touched_2x_10m` are 1 when the low is -80 or less / the high 100 or more.
+Do not use pregrad's outcome `minDrop` for drops from 2026-10-14 03:40 UTC on: from then it also counts the graduation-slot
+trades priced before the big graduation buy, so coins that never fell after +10 s read -80..-90%. pregrad's `crashed`
+is a different, milder flag: a trade at 60% of the running high or lower in the first 10 minutes (a 40%+ fall from the
+high), not an 80% drop.
 
 ## API
 
@@ -56,7 +61,7 @@ a result.
 | `lt.load(path_or_dataset, types=None, limit=None)` | streams the rows as dicts (a `.jsonl.gz` or `.parquet` path); `types` keeps only rows whose `type` is one of them, `limit` stops after that many rows; a dataset name reads its sample |
 | `lt.frame(path_or_dataset, types=None, limit=None)` | the same rows as a pandas DataFrame (nested fields stay dicts/lists) |
 | `lt.fetch(link_or_token, dataset, day, dest=None, format="jsonl")` | downloads a paid day file from your delivery link, checks it against its `.manifest.json`, returns its path; `format="parquet"` for the Parquet copy |
-| `lt.backtest(rules=None, gradtrades=None, pregrad=None)` | replays your trading rules on every graduate in a gradtrades file with honest fills and returns the result as a dict (see [Test your bot's rules](#test-your-bots-rules)) |
+| `lt.backtest(rules=None, gradtrades=None, pregrad=None, graduates=None)` | replays your trading rules on every graduate in a gradtrades file with honest fills and returns the result as a dict (see [Test your bot's rules](#test-your-bots-rules)) |
 | `lt.backtest_report(result)` | that result as the plain-text report `launchtape backtest` prints |
 
 ```python
@@ -118,7 +123,10 @@ launchtape backtest --rules rules.json --gradtrades data/gradtrades-2026-10-11.j
 launchtape backtest --rules rules.json --json        # every trade, as JSON
 ```
 
-A paid day finds its `pregrad` file next to it (`pregrad-2026-10-11.jsonl.gz` or `.parquet`), or pass `--pregrad`. A full
+A paid day finds its `pregrad` file next to it (`pregrad-2026-10-11.jsonl.gz` or `.parquet`), or pass `--pregrad`, and
+its graduates CSV (`graduates-2026-10-11.csv`, on your download page) for the "first 10 minutes" numbers, or pass
+`--graduates`. Without the CSV those numbers come from pregrad's outcome rows and leave out graduations from 2026-10-14
+03:40 UTC on, where pregrad `minDrop` is wrong. A full
 day (about 5 million rows) takes under a minute and little memory: the file is streamed once.
 
 | Rule | Meaning (default) |
@@ -153,7 +161,7 @@ print(res["summary"]["medianReturnPct"], len(res["trades"]))
 
 ## Full days: prices and how to buy
 
-- **One day, $10 once:** any UTC day you pick (from October 4 2026): that day's `gradtrades` and `pregrad`, the test prompt
+- **One day, $10 once:** any UTC day you pick (from October 4 2026): that day's `gradtrades` and `pregrad` (and its graduates CSV), the test prompt
   with its file names, and what the example rules returned that day: <https://launchtape.io/?plan=day1#buy>.
 - **Starter, $10 a month:** all 7 datasets, each new day's files as the UTC day closes, plus the last 7 days on file.
 - **Full history, $49 a month:** everything in Starter, plus every day on file back to October 3 2026.

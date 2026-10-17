@@ -84,18 +84,22 @@ def test_load_dataset_name_reads_the_sample(web):
     assert [r["mint"] for r in rows] == ["MintA", "MintB"]
 
 
-def test_frame(pregrad_gz):
+def test_frame(pregrad_gz, tmp_path):
     pd = pytest.importorskip("pandas")
     df = lt.frame(pregrad_gz, types=["record", "outcome"])
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 4 and {"type", "mint", "instant", "crashed", "minDrop"} <= set(df.columns)
-    # the README quickstart: share that touched -80% (minDrop <= -80) by instant
+    # the README quickstart: share that touched -80% by instant, from the graduates CSV (not pregrad minDrop, wrong
+    # from 2026-10-14 03:40 UTC); a coin with no trades has an empty low and is dropped
+    csv = tmp_path / "graduates-2026-10-12.csv"
+    csv.write_text("mint,curve_fill_sec,low_10m_pct,high_10m_pct,touched_minus80_10m,touched_2x_10m\n"
+                   "A,1.5,-85.2,10,1,0\nB,120,-20,150,0,1\nC,3,,,,\nD,2,-40,0,0,0\n", encoding="utf-8")
+    g = pd.read_csv(csv).dropna(subset=["low_10m_pct"])
+    g["instant"] = g["curve_fill_sec"] < 5
+    rate = g.groupby("instant")["touched_minus80_10m"].agg(["mean", "count"])
+    assert rate["mean"].to_dict() == {False: 0.0, True: 0.5} and rate["count"].to_dict() == {False: 1, True: 2}
     rec = lt.frame(pregrad_gz, types="record")[["mint", "instant"]]
-    out = lt.frame(pregrad_gz, types="outcome")[["mint", "minDrop", "maxGain", "crashed"]].dropna(subset=["minDrop"])
-    both = rec.merge(out, on="mint")
-    both["touched_minus80"] = both["minDrop"] <= -80
-    rate = both.groupby("instant")["touched_minus80"].mean()
-    assert rate.to_dict() == {False: 0.0, True: 1.0}
+    assert len(rec) == 2
     assert lt.frame(pregrad_gz, limit=2).shape[0] == 2
     assert lt.frame(pregrad_gz, types="nope").empty
 
