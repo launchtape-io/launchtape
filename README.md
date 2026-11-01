@@ -163,11 +163,12 @@ print(res["summary"]["medianReturnPct"], len(res["trades"]))
 
 - **One day, $10 once:** any UTC day you pick (from October 4 2026): that day's `gradtrades` and `pregrad` (and its graduates CSV), the test prompt
   with its file names, and what the example rules returned that day: <https://launchtape.io/?plan=day1#buy>.
-- **Starter, $10 a month:** all 7 datasets, each new day's files as the UTC day closes, plus the last 7 days on file.
-- **Full history, $49 a month:** everything in Starter, plus every day on file back to October 3 2026.
+- **One week, $20 once:** the latest 7 days on file, all eight datasets, plus one combined graduates spreadsheet.
+- **Full history, $49 for 31 days:** every day on file back to October 3 2026, then each new day's files by email for 31 days.
+  Nothing renews automatically.
 
-Buy at [launchtape.io](https://launchtape.io/#buy): pick one day or a plan, enter your email, press Pay (USDC or SOL on Solana; your
-wallet opens with everything filled in). The private download link (`https://launchtape.io/dl/<token>`) arrives by email,
+Buy at [launchtape.io](https://launchtape.io/#buy): pick one day or a plan, enter your email, press Pay (USDC or SOL on Solana, 300+ other coins, or
+Interac e-Transfer in Canada). The private download link (`https://launchtape.io/dl/<token>`) arrives by email,
 and `launchtape fetch` reads it.
 
 ## Licences
