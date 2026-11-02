@@ -1,19 +1,12 @@
-# launchtape
+# launchtape — Python tools for pump fun backtesting
 
-Python access to [Launch Tape](https://launchtape.io): daily files of Solana launch data, one file per dataset per
-UTC day, as gzipped JSON lines (`.jsonl.gz`) and as Parquet (`.parquet`, the same rows as typed columns).
+**Read Solana launch datasets and replay pump fun bot rules on recorded PumpSwap trades with explicit execution and coverage assumptions.**
 
-| Dataset | What it is |
-|---|---|
-| `gradtrades` | Every PumpSwap buy and sell in the first 30 minutes after each pump.fun graduation (wallet, amounts, price, pool reserves, fees) |
-| `pregrad` | Who is behind each pump.fun launch: creator and its funding, curve and graduation-slot buyers, the cap path, and a +10 min outcome |
-| `padfeed` | Graduations on Meteora DBC and Raydium LaunchLab: migration facts, pool balances every few seconds, top holders, US$ quote prices |
-| `meteora-pools` | Per-minute price, TVL, volume and exact fees for ~200 Meteora DLMM pools |
-| `curvetape` | Every trade on every pump.fun bonding curve from creation to graduation, plus creations, completions and migrations (from 2026-10-13) |
-| `launchmeta` | Every new pump.fun coin's metadata and a SHA-256 of its picture, at creation and at graduation (from 2026-10-13) |
-| `gradholders` | Each pump.fun graduate's 20 largest token accounts with owners and shares at +1, +10 and +60 minutes (from 2026-10-14) |
+Want a runnable example first? [Clone the offline pump fun backtest](https://github.com/launchtape-io/pump-fun-backtest). It bundles a small real public preview and runs with Python alone—no wallet, RPC or API key. Its results are simulations, not executed orders.
 
-Every file comes with a SHA-256; `launchtape` downloads a day you bought (`fetch`), checks it and reads it. The free files on the site (the graduates CSV and one coin's trades, [launchtape.io/#sample](https://launchtape.io/#sample)) are plain CSV / JSON lines you can open without it; `lt.sample(dataset)` only works while the site lists a free sample of that dataset (none since Oct 14 2026), so a full day ($10, [launchtape.io/?plan=day1#buy](https://launchtape.io/?plan=day1#buy)) is the way in.
+[Offline demo](https://github.com/launchtape-io/pump-fun-backtest) · [Dataset schemas](https://github.com/marklavigueur-dev/solana-launch-tape/tree/main/schema) · [Current files and plans](https://launchtape.io/?src=gh)
+
+This package verifies and reads downloaded day files as gzipped JSON lines or Parquet and includes a separate full-day replay command. The package's `sample()` routes are currently disabled on the website; use the bundled offline demo to try real data without a purchase. The historical preview in the dataset repo remains public.
 
 ## Install
 
@@ -27,7 +20,7 @@ Python 3.9 or newer.
 
 ## Quickstart
 
-Share of pump.fun graduates that touched -80% in their first 10 minutes, split by "instant" launches (graduated within 5 s of creation):
+Share of pump fun graduates that touched -80% in their first 10 minutes, split by "instant" launches (graduated within 5 s of creation):
 
 ```python
 import launchtape as lt
@@ -61,7 +54,7 @@ high), not an 80% drop.
 | `lt.load(path_or_dataset, types=None, limit=None)` | streams the rows as dicts (a `.jsonl.gz` or `.parquet` path); `types` keeps only rows whose `type` is one of them, `limit` stops after that many rows; a dataset name reads its sample |
 | `lt.frame(path_or_dataset, types=None, limit=None)` | the same rows as a pandas DataFrame (nested fields stay dicts/lists) |
 | `lt.fetch(link_or_token, dataset, day, dest=None, format="jsonl")` | downloads a paid day file from your delivery link, checks it against its `.manifest.json`, returns its path; `format="parquet"` for the Parquet copy |
-| `lt.backtest(rules=None, gradtrades=None, pregrad=None, graduates=None)` | replays your trading rules on every graduate in a gradtrades file with honest fills and returns the result as a dict (see [Test your bot's rules](#test-your-bots-rules)) |
+| `lt.backtest(rules=None, gradtrades=None, pregrad=None, graduates=None)` | replays your trading rules on every graduate in a gradtrades file with explicit simulated-fill assumptions and returns the result as a dict (see [Test your bot's rules](#test-your-bots-rules)) |
 | `lt.backtest_report(result)` | that result as the plain-text report `launchtape backtest` prints |
 
 ```python
@@ -110,10 +103,10 @@ launchtape fetch https://launchtape.io/dl/<token> pregrad 2026-10-11 -o data/ --
 
 ## Test your bot's rules
 
-`launchtape backtest` replays simple rules on every pump.fun graduate in a `gradtrades` file, coin by coin, and prints
+`launchtape backtest` replays simple rules on every pump fun graduate in a `gradtrades` file, coin by coin, and prints
 a report: coins traded, win rate, median and mean return a trade, total, the worst trades, how many coins never reached
 your entry, what the first 10 minutes did, a plain verdict, and the same rules filled the naive way for comparison.
-It is the same replay as the prompt on [launchtape.io/test](https://launchtape.io/test), for when your AI can't run code.
+It is the same replay as the prompt on [launchtape.io/test](https://launchtape.io/test?src=gh), for when your AI can't run code.
 
 ```sh
 launchtape backtest --gradtrades data/gradtrades-2026-10-11.jsonl.gz   # the example rules on a day you bought
@@ -140,7 +133,7 @@ day (about 5 million rows) takes under a minute and little memory: the file is s
 | `max_fill_s` / `min_fill_s` | only coins whose bonding curve filled within / took at least this many seconds from creation (pregrad `ageS`; 5 = the "instant" launches) |
 | `min_dev_pct` / `max_dev_pct` | only coins whose creator held at least / at most this % of supply at graduation (pregrad `creatorPctAtGrad`) |
 
-How a trade is filled, so the test is never kinder than the market:
+How this package models a hypothetical fill (real execution can still be worse):
 
 - Prices are read at the end of each slot (the slot's last trade's `priceAfter` and `poolBase`). Several trades in one
   slot can be one bundle, such as a big dump and its re-buy in the same block, and nobody outside could trade between
@@ -159,23 +152,15 @@ print(lt.backtest_report(res))
 print(res["summary"]["medianReturnPct"], len(res["trades"]))
 ```
 
-## Full days: prices and how to buy
+## Full days
 
-- **One day, $10 once:** any UTC day you pick (from October 4 2026): that day's `gradtrades` and `pregrad` (and its graduates CSV), the test prompt
-  with its file names, and what the example rules returned that day: <https://launchtape.io/?plan=day1#buy>.
-- **One week, $20 once:** the latest 7 days on file, all eight datasets, plus one combined graduates spreadsheet.
-- **Full history, $49 for 31 days:** every day on file back to October 3 2026, then each new day's files by email for 31 days.
-  Nothing renews automatically.
-
-Buy at [launchtape.io](https://launchtape.io/#buy): pick one day or a plan, enter your email, press Pay (USDC or SOL on Solana, 300+ other coins, or
-Interac e-Transfer in Canada). The private download link (`https://launchtape.io/dl/<token>`) arrives by email,
-and `launchtape fetch` reads it.
+See [current files, coverage and plans](https://launchtape.io/?src=gh). This package reads files you already have access to; the offline demo does not require a purchase. Model defaults differ between the package and demo, so compare assumptions before comparing results.
 
 ## Licences
 
 - **This package** (the code): MIT, see [LICENSE](LICENSE).
 - **The data** it downloads, the free samples included, has its own licence: personal and research use inside
   your own team. No resale, republishing or redistribution of the files, in whole or in part. Results you derive
-  from it (charts, papers, models, strategies) are yours. Full text: [launchtape.io](https://launchtape.io/#licence).
+  from it (charts, papers, models, strategies) are yours. Full text: [launchtape.io](https://launchtape.io/?src=gh#licence).
 
 The data is market data recorded from public sources, provided as is. It is not financial advice.
